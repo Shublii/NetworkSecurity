@@ -1,3 +1,7 @@
+# A config file keeps the project's important settings, such as file paths, folder names, database details, and artifact locations. Every pipeline component reads these settings from the config file.
+
+
+
 from datetime import datetime
 import os
 from networksecurity.constants import training_pipeline 
@@ -7,7 +11,7 @@ print(training_pipeline.PIPELINE_NAME)
 print(training_pipeline.ARTIFACT_DIR)
 
 
-##udemy
+###
 # class TrainingPipelineConfig:
 #     def __init__(self, timestamp=datetime.now()):
 #         timestamp = timestamp.strftime("%m_%d_%Y_%H_%M_%S")
@@ -82,4 +86,33 @@ class DataIngestionConfig:
             training_pipeline.DATA_INGESTION_DATABASE_NAME
         )
 
-        
+
+
+class DataValidationConfig:
+    def __init__(self, training_pipeline_config: TrainingPipelineConfig):
+        self.data_validation_dir: str = os.path.join(
+            training_pipeline_config.artifact_dir, training_pipeline.DATA_VALIDATION_DIR_NAME
+        )
+        self.valid_data_dir: str = os.path.join(
+            self.data_validation_dir, training_pipeline.DATA_VALIDATION_VALID_DIR
+        )
+        self.invalid_data_dir: str = os.path.join(
+            self.data_validation_dir, training_pipeline.DATA_VALIDATION_INVALID_DIR
+        )
+        self.valid_train_file_path: str = os.path.join(
+            self.valid_data_dir, training_pipeline.TRAIN_FILE_NAME
+        )
+        self.valid_test_file_path: str = os.path.join(
+            self.valid_data_dir, training_pipeline.TEST_FILE_NAME
+        )
+        self.invalid_train_file_path: str = os.path.join(
+            self.invalid_data_dir, training_pipeline.TRAIN_FILE_NAME
+        )
+        self.invalid_test_file_path: str = os.path.join(
+            self.invalid_data_dir, training_pipeline.TEST_FILE_NAME
+        )
+        self.drift_report_file_path: str = os.path.join(
+            self.data_validation_dir,
+            training_pipeline.DATA_VALIDATION_DRIFT_REPORT_DIR,
+            training_pipeline.DATA_VALIDATION_DRIFT_REPORT_FILE_NAME,
+        )

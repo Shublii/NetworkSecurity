@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phishing check</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#e9edf1;--panel:#fff;--ink:#17212b;--muted:#5a6772;--line:#cbd3db;--safe:#0e7c66;--danger:#b3261e;--idle:#34475a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "Public Sans",system-ui,sans-serif}
+header{padding:28px 20px 8px;max-width:1080px;margin:0 auto}
+h1{font-size:1.6rem;margin:0 0 4px;font-weight:800}
+header p{margin:0;color:var(--muted);max-width:60ch}
+main{max-width:1080px;margin:0 auto;padding:16px 20px 48px;display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:24px;align-items:start}
+fieldset{background:var(--panel);border:1px solid var(--line);border-radius:6px;margin:0 0 16px;padding:8px 16px 12px}
+legend{font-weight:600;padding:0 6px}
+label{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid #e6ebf0}
+label:last-child{border-bottom:0}
+label span{font-size:.92rem}
+select{font:inherit;font-size:.9rem;padding:5px 8px;border:1px solid var(--line);border-radius:4px;background:#fff;color:var(--ink);min-width:150px}
+.urlbar{display:flex;gap:8px;margin-bottom:8px}.urlbar input{flex:1;min-width:0;font:inherit;padding:10px 12px;border:1px solid var(--line);border-radius:4px}.urlbar button{white-space:nowrap}#scanNotes{font-size:.88rem;color:var(--muted);margin:0 0 16px;min-height:1.3em}label.unk span::after{content:" (not measured)";color:#9a6700;font-size:.8rem}
+.presets{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+button,.file{font:inherit;font-weight:600;border-radius:4px;padding:9px 16px;cursor:pointer;border:1px solid var(--ink);background:#fff;color:var(--ink)}
+button.primary{background:var(--ink);color:#fff;width:100%;padding:12px}
+button:focus-visible,select:focus-visible,input:focus-visible+.file{outline:3px solid #2f6fed;outline-offset:2px}
+aside{position:sticky;top:16px}
+#verdict{border-radius:6px;padding:24px 20px;color:#fff;background:var(--idle);transition:background .25s}
+#verdict.safe{background:var(--safe)}#verdict.bad{background:var(--danger)}
+#verdict h2{font-size:1.7rem;line-height:1.15;margin:0 0 8px;font-weight:800}
+#verdict p{margin:0 0 14px;opacity:.92}
+.bar{height:8px;background:rgba(255,255,255,.3);border-radius:4px;overflow:hidden}
+.bar i{display:block;height:100%;background:#fff;width:0;transition:width .3s}
+#meter{font-size:.85rem;margin-top:6px;min-height:1.3em}
+aside button{margin-top:12px}
+.note{background:#fff3cd;border:1px solid #e0c36a;border-radius:6px;padding:10px 14px;margin-bottom:16px;font-size:.9rem}
+section.batch{grid-column:1/-1;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:16px 20px}
+section.batch h2{margin:0 0 4px;font-size:1.1rem}
+section.batch p{margin:0 0 12px;color:var(--muted);font-size:.92rem}
+input[type=file]{position:absolute;opacity:0;width:1px;height:1px}
+table{border-collapse:collapse;margin-top:12px;font-size:.9rem;min-width:320px}
+th,td{text-align:left;padding:5px 14px 5px 0;border-bottom:1px solid #e6ebf0}
+.wrap{overflow-x:auto}
+@media(max-width:820px){main{grid-template-columns:1fr}aside{position:static;order:-1}label{flex-direction:column;align-items:flex-start;gap:4px}select{width:100%}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Is this website phishing?</h1>
+  <p>Paste a web address and the app measures the checks for you, or set them by hand below. The trained model compares them against thousands of known phishing and legitimate sites.</p>
+</header>
+<main>
+  <div>
+    <div id="note" class="note" hidden></div>
+    <div class="urlbar"><input id="url" type="text" placeholder="https://example.com" aria-label="Web address to scan" autocomplete="off"><button id="scan" class="primary" type="button" style="width:auto">Scan web address</button></div>
+    <p id="scanNotes"></p>
+    <div class="presets">
+      <button type="button" data-fill="1">Fill with a typical safe site</button>
+      <button type="button" data-fill="-1">Fill with a typical phishing site</button>
+    </div>
+    <div id="fields"></div>
+  </div>
+  <aside>
+    <div id="verdict" role="status" aria-live="polite">
+      <h2>No result yet</h2>
+      <p>Set the checks, then run the model.</p>
+      <div class="bar"><i id="fill"></i></div>
+      <div id="meter"></div>
+    </div>
+    <button id="check" class="primary" type="button">Check this website</button>
+  </aside>
+  <section class="batch">
+    <h2>Check many websites at once</h2>
+    <p>Upload a CSV with the same 30 feature columns as your training data.</p>
+    <input id="csv" type="file" accept=".csv"><label for="csv" class="file" style="display:inline-block;border-bottom:1px solid var(--ink)">Choose CSV file</label>
+    <div id="batchOut"></div>
+  </section>
+</main>
+<script>
+const $ = s => document.querySelector(s);
+let feats = [], lastRows = [];
+
+async function init() {
+  const d = await (await fetch('/api/features')).json();
+  feats = d.features;
+  const groups = [...new Set(feats.map(f => f.group))];
+  $('#fields').innerHTML = groups.map(g =>
+    `<fieldset><legend>${g}</legend>` +
+    feats.filter(f => f.group === g).map(f =>
+      `<label><span>${f.label}</span><select name="${f.name}">
+        <option value="1">Looks safe</option><option value="0">Unsure</option><option value="-1">Looks suspicious</option>
+      </select></label>`).join('') + `</fieldset>`).join('');
+  const h = await (await fetch('/health')).json();
+  if (!h.model_loaded) {
+    const n = $('#note'); n.hidden = false;
+    n.textContent = 'The model is not loaded, so checks will fail. Run python main.py to create final_model/model.pkl, then restart. Details: ' + h.error;
+  }
+}
+
+function setVerdict(cls, title, text, pct) {
+  $('#verdict').className = cls;
+  $('#verdict h2').textContent = title;
+  $('#verdict p').textContent = text;
+  $('#fill').style.width = (pct ?? 0) + '%';
+  $('#meter').textContent = pct == null ? '' : `Phishing likelihood: ${pct}%`;
+}
+
+function showResult(d) {
+  const pct = d.phishing_probability == null ? null : Math.round(d.phishing_probability * 100);
+  d.phishing
+    ? setVerdict('bad', 'Likely phishing', 'Do not enter passwords or payment details on this site.', pct)
+    : setVerdict('safe', 'Looks legitimate', 'No strong phishing signs found. Stay careful with links you did not expect.', pct);
+}
+
+$('#scan').onclick = async () => {
+  const notes = $('#scanNotes'); notes.textContent = 'Scanning… this can take up to 30 seconds.';
+  $('#scan').disabled = true;
+  try {
+    const r = await fetch('/api/scan-url', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({url: $('#url').value})});
+    const d = await r.json();
+    if (!r.ok) throw new Error(typeof d.detail === 'string' ? d.detail : 'Request failed');
+    feats.forEach(f => {
+      const s = document.querySelector(`[name="${f.name}"]`);
+      s.value = d.features[f.name];
+      s.parentElement.classList.toggle('unk', d.unknown.includes(f.name));
+    });
+    notes.textContent = `Scanned ${d.final_url}. ${d.unknown.length} checks could not be measured and are set to Unsure; change them below and press Check to re-run. ` + d.notes.join(' ');
+    showResult(d);
+  } catch (e) {
+    notes.textContent = e.message;
+  }
+  $('#scan').disabled = false;
+};
+$('#url').addEventListener('keydown', e => { if (e.key === 'Enter') $('#scan').click(); });
+
+document.querySelectorAll('[data-fill]').forEach(b => b.onclick = () =>
+  document.querySelectorAll('select').forEach(s => s.value = b.dataset.fill));
+
+$('#check').onclick = async () => {
+  const body = {};
+  feats.forEach(f => body[f.name] = +document.querySelector(`[name="${f.name}"]`).value);
+  $('#check').disabled = true;
+  try {
+    const r = await fetch('/api/predict', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+    const d = await r.json();
+    if (!r.ok) throw new Error(typeof d.detail === 'string' ? d.detail : 'Request failed');
+    showResult(d);
+  } catch (e) {
+    setVerdict('', 'Check failed', e.message, null);
+  }
+  $('#check').disabled = false;
+};
+
+$('#csv').onchange = async e => {
+  const out = $('#batchOut'); out.textContent = 'Checking…';
+  const fd = new FormData(); fd.append('file', e.target.files[0]);
+  try {
+    const r = await fetch('/api/predict-csv', {method: 'POST', body: fd});
+    const d = await r.json();
+    if (!r.ok) throw new Error(typeof d.detail === 'string' ? d.detail : 'Request failed');
+    lastRows = d.rows;
+    const shown = d.rows.slice(0, 20).map(x => `<tr><td>${x.row}</td><td>${x.verdict}</td><td>${x.phishing_probability == null ? '-' : Math.round(x.phishing_probability * 100) + '%'}</td></tr>`).join('');
+    out.innerHTML = `<p><b>${d.total}</b> sites checked: <b>${d.phishing}</b> phishing, <b>${d.legitimate}</b> legitimate.</p>
+      <div class="wrap"><table><tr><th>Row</th><th>Verdict</th><th>Phishing likelihood</th></tr>${shown}</table></div>
+      ${d.total > 20 ? '<p>Showing the first 20 rows.</p>' : ''}<button type="button" id="dl">Download all results</button>`;
+    $('#dl').onclick = () => {
+      const csv = 'row,verdict,phishing_probability\n' + lastRows.map(x => `${x.row},${x.verdict},${x.phishing_probability ?? ''}`).join('\n');
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([csv], {type: 'text/csv'}));
+      a.download = 'predictions.csv'; a.click();
+    };
+  } catch (err) { out.textContent = 'Could not check the file: ' + err.message; }
+};
+init();
+</script>
+</body>
+</html>

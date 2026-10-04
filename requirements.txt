@@ -7,6 +7,12 @@ pymongo[srv]
 scikit-learn
 mlflow
 pyaml
-
+dagshub
+fastapi
+uvicorn[standard]
+python-multipart
+requests
+beautifulsoup4
+python-whois
 
 ##-e .
